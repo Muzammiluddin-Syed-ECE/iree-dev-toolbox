@@ -171,6 +171,12 @@ refreshBrc() {
     source $HOME/.venv/bin/activate
 }
 
+
+installIREE() {
+    CMAKE_INSTALL_METHOD=ABS_SYMLINK python -m pip install -e $1/compiler
+    CMAKE_INSTALL_METHOD=ABS_SYMLINK python -m pip install -e $1/runtime
+}
+
 rebuildLLVM() {
     pushd $IREE_HOME/third_party/llvm-project/build
     cmake -G Ninja ../llvm \
@@ -218,7 +224,7 @@ rebuildc() {
         -DIREE_TARGET_BACKEND_ROCM=ON \
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx942
-
+    installIREE $IREE_BUILD
     cmake --build ../iree-build/ -j 64
     popd
 } 
@@ -490,4 +496,13 @@ getPatchIree() {
     popd
 }
 
-
+tomashCommands() {
+    cd ~
+    git clone git@github.com:iree-org/iree-test-suites.git
+    # cd ~/iree-test-suites/
+    # python -m pip install -e sharktank_models/
+    env TEST_OUTPUT_ARTIFACTS=$PWD BACKEND=rocm \
+    pytest $IREE_TESTS/sharktank_models/quality_tests/ \
+    -rpfE --log-cli-level=info --test-file-directory=$IREE_HOME/tests/external/iree-test-suites/sharktank_models/quality_tests \
+    --external-file-directory=$IREE_HOME/build_tools/pkgci/external_test_suite
+}
