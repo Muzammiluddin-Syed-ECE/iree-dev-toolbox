@@ -222,7 +222,6 @@ rebuildc() {
     cmake --build ../iree-build/ -j 64
     popd
 } 
-
 export -f rebuildc
 
 rebuildDebug() {
@@ -255,6 +254,15 @@ cloneIREE() {
     git clone https://github.com/iree-org/iree.git
     cd iree
     git submodule update --init
+}
+
+setupWorkspace() {
+    make_venv
+    # Upgrade PIP before installing other requirements
+    python -m pip install --upgrade pip
+    # Install IREE build requirements
+    python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
+    cloneIREE
 }
 
 make_venv() {
