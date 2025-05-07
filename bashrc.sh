@@ -506,3 +506,7 @@ tomashCommands() {
     -rpfE --log-cli-level=info --test-file-directory=$IREE_HOME/tests/external/iree-test-suites/sharktank_models/quality_tests \
     --external-file-directory=$IREE_HOME/build_tools/pkgci/external_test_suite
 }
+
+topkCommands() {
+    iree-compile $IN_MLIR/topk.mlir   --iree-hal-target-device=hip[0]   --iree-hal-executable-debug-level=3   -o=output.vmfb --iree-hip-target=gfx942 --mlir-disable-threading --debug-only=iree-llvmgpu-kernel-config &> $OUTPUT/before_no_opt3.mine.mlir
+}
