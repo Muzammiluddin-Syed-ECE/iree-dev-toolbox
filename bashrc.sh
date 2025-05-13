@@ -129,7 +129,9 @@ prepare_env() {
 }
 
 export IREE_HOME=$HOME/iree
-export IREE_BUILD=$HOME/iree-build
+export IREE_BUILD_DIR=iree-build
+export IREE_BUILD=$PROJECTS/$IREE_BUILD_DIR
+export IREE_DEV_TOOLBOX=$HOME/iree-dev-toolbox
 export PATH=$PATH:$IREE_BUILD/tools
 export PATH=$PATH:$IREE_HOME/third_party/torch-mlir/tools
 export PATH=$PATH:$IREE_BUILD/llvm-project/bin
@@ -150,7 +152,6 @@ export SCRIPTS=$LOCAL/scripts
 export GENERATED=$LOCAL/data/template/generated
 
 setLocal() {
-    old="export PRJ=$PRJ"
     export PRJ=$1
     export LOCAL=$PROJECTS/$PRJ
     export OUTPUT=$LOCAL/output
@@ -160,15 +161,19 @@ setLocal() {
     export TEMPLATE=$LOCAL/data/template
     export GENERATED=$LOCAL/data/template/generated
     export SCRIPTS=$LOCAL/scripts
+    source $LOCAL/.venv/bin/activate
+    old="export PRJ=$PRJ"
     new="export PRJ=$1"
-    sed -i "s|$old|$new|g" /home/muzasyed/.bashrc
+    sed -i "s|$old|$new|g" $HOME/.bashrc
+    old_build="export IREE_BUILD_DIR=$IREE_BUILD_DIR"
+    new_build="export IREE_BUILD_DIR=$1/iree-build"
+    sed -i "s|$old_build|$new_build|g" $HOME/.bashrc
 }
-
 export -f setLocal
 
 refreshBrc() {
     source $HOME/.bashrc
-    source $HOME/.venv/bin/activate
+    source $LOCAL/.venv/bin/activate
 }
 
 
@@ -200,7 +205,7 @@ rebuildLLVM() {
 
 rebuildc() {
     pushd $IREE_HOME
-    cmake -G Ninja -B ../iree-build/ -S . \
+    cmake -G Ninja -B $IREE_BUILD -S . \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DIREE_ENABLE_ASSERTIONS=ON \
         -DIREE_ENABLE_SPLIT_DWARF=ON \
@@ -224,15 +229,46 @@ rebuildc() {
         -DIREE_TARGET_BACKEND_ROCM=ON \
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx942
+    cmake --build $IREE_BUILD -j 64
     installIREE $IREE_BUILD
-    cmake --build ../iree-build/ -j 64
     popd
 } 
 export -f rebuildc
 
+rebuild() {
+    pushd $IREE_HOME
+    cmake -G Ninja -B $IREE_BUILD -S . \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DIREE_ENABLE_ASSERTIONS=ON \
+        -DIREE_ENABLE_SPLIT_DWARF=ON \
+        -DIREE_ENABLE_THIN_ARCHIVES=ON \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DIREE_ENABLE_LLD=ON \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+        -DIREE_BUILD_PYTHON_BINDINGS=ON  \
+        -DPython3_EXECUTABLE="$(which python3)" \
+        -DIREE_HAL_DRIVER_HIP=ON \
+        -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
+        -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
+        -DIREE_HAL_DRIVER_VULKAN=ON \
+        -DIREE_HAL_DRIVER_CUDA=ON \
+        -DIREE_TARGET_BACKEND_CUDA=ON \
+        -DIREE_TARGET_BACKEND_VMVX=ON \
+        -DIREE_TARGET_BACKEND_LLVM_CPU=ON \
+        -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
+        -DIREE_TARGET_BACKEND_ROCM=ON \
+        -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
+        -DIREE_HIP_TEST_TARGET_CHIP=gfx942
+    cmake --build $IREE_BUILD -j 64
+    popd
+} 
+export -f rebuild
+
 rebuildRelease() {
     pushd $IREE_HOME
-    cmake -G Ninja -B ../iree-build/ -S . \
+    cmake -G Ninja -B $IREE_BUILD -S . \
         -DCMAKE_BUILD_TYPE=Release \
         -DIREE_ENABLE_SPLIT_DWARF=ON \
         -DIREE_ENABLE_THIN_ARCHIVES=ON \
@@ -256,14 +292,14 @@ rebuildRelease() {
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx1100
 
-    cmake --build ../iree-build/
+    cmake --build $IREE_BUILD
     popd
 } 
 export -f rebuildRelease
 
 rebuildDebug() {
     pushd $IREE_HOME
-    cmake -G Ninja -B ../iree-build/ -S . \
+    cmake -G Ninja -B $IREE_BUILD -S . \
     -DCMAKE_BUILD_TYPE=DEBUG \
     -DIREE_ENABLE_ASSERTIONS=ON \
     -DIREE_ENABLE_SPLIT_DWARF=ON \
@@ -277,7 +313,7 @@ rebuildDebug() {
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DLLVM_ENABLE_ASSERTIONS=ON
-    cmake --build ../iree-build/ -j 64
+    cmake --build $IREE_BUILD -j 64
     popd
 } 
 
@@ -288,9 +324,13 @@ runTest() {
 
 ### Building IREE
 cloneIREE() {
-    git clone https://github.com/iree-org/iree.git
+    git clone git@github.com:Muzammiluddin-Syed-ECE/iree.git
     cd iree
+    git remote add upstream git@github.com:iree-org/iree.git
     git submodule update --init
+    cd third_party/llvm-project
+    git remote set-url origin git@github.com:Muzammiluddin-Syed-ECE/llvm-project.git
+    git remote add upstream git@github.com:llvm/llvm-project.git
 }
 
 setupWorkspace() {
@@ -298,7 +338,7 @@ setupWorkspace() {
     # Upgrade PIP before installing other requirements
     python -m pip install --upgrade pip
     # Install IREE build requirements
-    python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
+    python -m pip install -r $IREE_HOME/runtime/bindings/python/iree/runtime/build_requirements.txt
     cloneIREE
 }
 
@@ -366,7 +406,7 @@ randTensorAsString() {
     args=("$@")
     args=("${args[@]:1}")
     name=("$1")
-    value="$(python3 /home/muzasyed/projects/project2/data/generate/print.py ${args[@]})"
+    value="$(python3 $IREE_DEV_TOOLBOX/scripts/generate/npy/print.py ${args[@]})"
     # export $name=$value
     export $name="$value"
     echo access tensor as string at $1
@@ -378,7 +418,7 @@ randNpy() {
     args=("$@")
     echo ${args[@]}
     args=("${args[@]:1}")
-    python3 /home/muzasyed/projects/project2/data/generate/randNpy.py $GENERATE/$1 ${args[@]}
+    python3 $IREE_DEV_TOOLBOX/scripts/generate/npy/randNpy.py $GENERATE/$1 ${args[@]}
 }
 export -f randNpy
 
@@ -386,7 +426,7 @@ arangeNpy() {
     args=("$@")
     echo ${args[@]}
     args=("${args[@]:1}")
-    python3 /home/muzasyed/projects/project2/data/generate/arangeNpy.py $GENERATE/$1 ${args[@]}
+    python3 $IREE_DEV_TOOLBOX/scripts/generate/npy/arangeNpy.py $GENERATE/$1 ${args[@]}
 }
 export -f arangeNpy
 
@@ -394,7 +434,7 @@ maskNpy() {
     args=("$@")
     echo ${args[@]}
     args=("${args[@]:1}")
-    python3 /home/muzasyed/projects/project2/data/generate/maskNpy.py $GENERATE/$1 ${args[@]}
+    python3 $IREE_DEV_TOOLBOX/scripts/generate/npy/maskNpy.py $GENERATE/$1 ${args[@]}
 }
 export -f maskNpy
 
@@ -402,7 +442,7 @@ oneElementNpy() {
     args=("$@")
     echo ${args[@]}
     args=("${args[@]:1}")
-    python3 /home/muzasyed/projects/project2/data/generate/oneElementNpy.py $GENERATE/$1 ${args[@]}
+    python3 $IREE_DEV_TOOLBOX/scripts/generate/npy/oneElementNpy.py $GENERATE/$1 ${args[@]}
 }
 export -f oneElementNpy
 
@@ -467,12 +507,14 @@ switch() {
 }
 
 checkDiff() {
-    python /home/muzasyed/projects/project2/data/scripts/checkDiff.py $1 $2
+    python $IREE_DEV_TOOLBOX/scripts/verify/checkDiff.py $1 $2
 }
 export -f checkDiff
 
 setupProject() {
     mkdir -p $PROJECTS/$1
+    cd $PROJECTS/$1
+    make_venv
     setLocal $1
     mkdir -p $OUTPUT
     mkdir -p $IN_MLIR
@@ -486,7 +528,7 @@ setupProject() {
 }
 
 printNpy() {
-    python /home/muzasyed/projects/project2/data/generate/printNpy.py $1
+    python $IREE_DEV_TOOLBOX/scripts/verify/printNpy.py $1
 }
 export -f printNpy
 
