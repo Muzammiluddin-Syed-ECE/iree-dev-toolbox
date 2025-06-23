@@ -127,22 +127,12 @@ prepare_env() {
     # Prepend ccache into the PATH
     echo 'export PATH="/usr/lib/ccache:$PATH"' | tee -a ~/.bashrc
 }
-
+export PROJECTS=$HOME/projects
 export IREE_HOME=$HOME/iree
-export IREE_BUILD_DIR=iree-build
+export IREE_BUILD_DIR=project14/iree-build
 export IREE_BUILD=$PROJECTS/$IREE_BUILD_DIR
 export IREE_DEV_TOOLBOX=$HOME/iree-dev-toolbox
-export PATH=$PATH:$IREE_BUILD/tools
-export PATH=$PATH:$IREE_HOME/third_party/torch-mlir/tools
-export PATH=$PATH:$IREE_BUILD/llvm-project/bin
-export PATH=$PATH:$HOME/torch-mlir/build/bin
-export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/bin
-export PATH="/usr/lib/ccache:$PATH"
-export PYTHONPATH=$PYTHONPATH:$HOME/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir:$HOME/torch-mlir/test/python/fx_importer
-export PYTHONPATH=$PYTHONPATH:$IREE_BUILD/compiler/bindings/python:$IREE_BUILD/runtime/bindings/python
-export THIRDPARTY=$IREE_HOME/third_party
-export PROJECTS=$HOME/projects
-export PRJ=project2
+export PRJ=project14
 export LOCAL=$PROJECTS/$PRJ
 export OUTPUT=$LOCAL/output
 export IN_MLIR=$LOCAL/samples/mlir
@@ -150,8 +140,20 @@ export IN_VMFB=$LOCAL/samples/vmfb
 export GENERATE=$LOCAL/data/generate
 export SCRIPTS=$LOCAL/scripts
 export GENERATED=$LOCAL/data/template/generated
+export PATH="~/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:$LOCAL/.venv/bin"
+export PATH=$IREE_BUILD/tools:$PATH
+export PATH=$PATH:$IREE_HOME/third_party/torch-mlir/tools
+export PATH=$PATH:$IREE_BUILD/llvm-project/bin
+export PATH=$PATH:$HOME/torch-mlir/build/bin
+export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/bin
+export PATH="/usr/lib/ccache:$PATH"
+export PYTHONPATH=$IREE_BUILD/compiler/bindings/python:$IREE_BUILD/runtime/bindings/python
+export THIRDPARTY=$IREE_HOME/third_party
+export DEVICE=$(rocminfo | grep -o "gfx[0-9]*" | head -n 1)
+echo "DEVICE IS $DEVICE"
 
 setLocal() {
+    old="export PRJ=$PRJ"
     export PRJ=$1
     export LOCAL=$PROJECTS/$PRJ
     export OUTPUT=$LOCAL/output
@@ -162,7 +164,6 @@ setLocal() {
     export GENERATED=$LOCAL/data/template/generated
     export SCRIPTS=$LOCAL/scripts
     source $LOCAL/.venv/bin/activate
-    old="export PRJ=$PRJ"
     new="export PRJ=$1"
     sed -i "s|$old|$new|g" $HOME/.bashrc
     old_build="export IREE_BUILD_DIR=$IREE_BUILD_DIR"
@@ -228,6 +229,9 @@ rebuildc() {
         -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
         -DIREE_TARGET_BACKEND_ROCM=ON \
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
+        -DIREE_ENABLE_RUNTIME_TRACING=ON \
+        -DIREE_BUILD_TRACY=ON \
+        -DIREE_TRACING_MODE=1 \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx942
     cmake --build $IREE_BUILD -j 64
     installIREE $IREE_BUILD
@@ -239,6 +243,7 @@ rebuild() {
     pushd $IREE_HOME
     cmake -G Ninja -B $IREE_BUILD -S . \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DIREE_ENABLE_RUNTIME_TRACING=ON \
         -DIREE_ENABLE_ASSERTIONS=ON \
         -DIREE_ENABLE_SPLIT_DWARF=ON \
         -DIREE_ENABLE_THIN_ARCHIVES=ON \
@@ -260,6 +265,7 @@ rebuild() {
         -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
         -DIREE_TARGET_BACKEND_ROCM=ON \
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
+        -DIREE_BUILD_TRACY=4 \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx942
     cmake --build $IREE_BUILD -j 64
     popd
@@ -290,9 +296,11 @@ rebuildRelease() {
         -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
         -DIREE_TARGET_BACKEND_ROCM=ON \
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
-        -DIREE_HIP_TEST_TARGET_CHIP=gfx1100
+        -DIREE_HIP_TEST_TARGET_CHIP=gfx942 \
+        -DIREE_ENABLE_RUNTIME_TRACING=ON
 
     cmake --build $IREE_BUILD
+    installIREE $IREE_BUILD
     popd
 } 
 export -f rebuildRelease
@@ -336,14 +344,14 @@ cloneIREE() {
 setupWorkspace() {
     make_venv
     # Upgrade PIP before installing other requirements
-    python -m pip install --upgrade pip
+    python3.11 -m pip install --upgrade pip
     # Install IREE build requirements
-    python -m pip install -r $IREE_HOME/runtime/bindings/python/iree/runtime/build_requirements.txt
-    cloneIREE
+    python3.11 -m pip install -r $IREE_HOME/runtime/bindings/python/iree/runtime/build_requirements.txt
+    # cloneIREE
 }
 
 make_venv() {
-    python3 -m venv .venv
+    python3.11 -m venv .venv
     source .venv/bin/activate
 }
 
@@ -447,8 +455,15 @@ oneElementNpy() {
 export -f oneElementNpy
 
 buildTests() {
-    pushd $IREE_BUILD
-    cmake --build . --target iree-test-deps
+    export CTEST_PARALLEL_LEVEL=2
+    export IREE_CTEST_LABEL_REGEX="^requires-gpu|^driver=hip$"
+    export IREE_AMD_RDNA3_TESTS_DISABLE=1
+    export IREE_NVIDIA_GPU_TESTS_DISABLE=0
+    export IREE_NVIDIA_SM80_TESTS_DISABLE=1
+    export IREE_MULTI_DEVICE_TESTS_DISABLE=0
+    pushd $IREE_HOME
+    cmake --build $LOCAL/iree-build --target iree-test-deps
+    $IREE_HOME/build_tools/cmake/ctest_all.sh $LOCAL/iree-build
     popd
 }
 
@@ -514,7 +529,7 @@ export -f checkDiff
 setupProject() {
     mkdir -p $PROJECTS/$1
     cd $PROJECTS/$1
-    make_venv
+    setupWorkspace
     setLocal $1
     mkdir -p $OUTPUT
     mkdir -p $IN_MLIR
@@ -552,3 +567,88 @@ tomashCommands() {
 topkCommands() {
     iree-compile $IN_MLIR/topk.mlir   --iree-hal-target-device=hip[0]   --iree-hal-executable-debug-level=3   -o=output.vmfb --iree-hip-target=gfx942 --mlir-disable-threading --debug-only=iree-llvmgpu-kernel-config &> $OUTPUT/before_no_opt3.mine.mlir
 }
+
+llvm_integration() {
+    # Source: https://github.com/iree-org/megabump
+    # Checkout the megabump repo
+    git clone https://github.com/iree-org/megabump.git
+
+    cd megabump
+    mkdir work
+
+    # Checkout iree into work/iree (Can also create a symlink to existing clone)
+    git clone https://github.com/iree-org/iree work/iree
+
+    # Create a venv and install python deps in it
+    python -m venv work/venv
+    source work/venv/bin/activate
+    cd work/iree
+    python -m pip install --upgrade pip
+    python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
+    deactivate
+}
+
+setUpShortFin() {
+    pip install -r pytorch-rocm-requirements.txt
+    # Install editable local projects.
+    pip install -r requirements.txt -e sharktank/ -e shortfin/
+
+    # Install the latest nightly release of iree-turbine, alond with
+    # nightly versions of iree-base-compiler and iree-base-runtime.
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
+    iree-turbine
+}
+
+ctestThing() {
+    ctest --test-dir $LOCAL/iree-build --timeout 900 --output-on-failure --no-tests=error --label-regex '^requires-gpu|^driver=hip$' --label-exclude '(^nodocker$|^driver=vulkan$|^driver=metal$|^driver=cuda$|^vulkan_uses_vk_khr_shader_float16_int8$|^requires-gpu-sm80$|^requires-gpu-rdna3$|^requires-gpu-rdna4$)' --exclude-regex '(^iree/samples/custom_dispatch/cpu/embedded/example_hal.mlir.test$|^iree/samples/custom_dispatch/cpu/embedded/example_stream.mlir.test$|^iree/samples/custom_dispatch/cpu/embedded/example_transform.mlir.test$)'
+}
+
+
+compileDirPattern() {
+    echo $1
+    SRC_DIR=$PROJECTS/$1
+    PREFIX=$3
+    if [[ "$2" == " " ]] || [[ "$2" == "" ]]; then
+        echo $SRC_DIR
+        pattern="$SRC_DIR/samples/mlir/*.mlir"
+    else
+        pattern="$SRC_DIR/samples/mlir/$2"
+    fi
+    echo $pattern
+    for filepath in $pattern; do
+    if [ -f "$filepath" ]; then
+        file=${filepath##*/}
+        echo "[COMPILE]"
+        echo "$SRC_DIR/iree-build/tools/iree-compile $filepath -o $SRC_DIR/output/$PREFIX$file.out --iree-hal-target-device=hip --iree-hip-target=$DEVICE --compile-to=$4 &> $SRC_DIR/output/$PREFIX$file.mlir"
+        $SRC_DIR/iree-build/tools/iree-compile $filepath -o $SRC_DIR/output/$PREFIX$file.out --iree-hal-target-device=hip --iree-hip-target=$DEVICE --compile-to=$4 &> $SRC_DIR/output/$PREFIX$file.mlir
+    fi
+    done
+}
+export -f compileDirPattern
+
+# pip install -r pytorch-rocm-requirements.txt
+# pip install -r requirements.txt -e sharktank/ -e shortfin/
+# bash sharktank/sharktank/pipelines/flux/export_from_hf.sh /home/muzasyed/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44 flux_dev
+# cd ~/shark-ai/shortfin && python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config.json --device=hip --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=compile --port=8081
+
+# cd ~/shark-ai/ && pip install -e shortfin/
+
+# iree-compile /home/muzasyed/projects/project11/samples/mlir/flux_77.mlir -o $OUTPUT/flux_77_main.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-hal-dump-executable-sources-to=$OUTPUT/executables/sources
+# iree-run-module --device=hip --input=@/home/muzasyed/projects/project11/data/generate/1_77_rand.npy --module=$OUTPUT/flux_77_main.vmfb --parameters=model=/home/muzasyed/.cache/shark/genfiles/flux/flux_clip_bf16.irpa &> $OUTPUT/results_main.txt
+
+
+# $IREE_BUILD/tracy/iree-tracy-capture -o capture.tracy
+
+tracyLoop() {
+    rebuildc
+    cd ~/iree-model-benchmark/sdxl/fp16-model/ && bash ./compile-unet.sh gfx942 --iree-config-add-tuner-attributes --iree-hal-executable-debug-level=3
+    TRACY_NO_EXIT=1 iree-run-module   --device=hip   --module=$PWD/tmp/unet.vmfb --parameters=model=$PWD/tmp2/scheduled_unet_fp16.irpa   --input=1x4x128x128xf16   --input=1xi64   --input=2x64x2048xf16   --input=2x1280xf16   --input=2x6xf16   --input=1xf16
+    cd $IREE_HOME/third_party/tracy
+    cmake -B capture/build -S capture -DCMAKE_BUILD_TYPE=Release
+    cmake --build capture/build --parallel --config Release
+
+    # Run the capture tool:
+    # ./capture/build/tracy-capture -f -o capture.tracy
+    $IREE_BUILD/tracy/iree-tracy-capture -o capture.tracy
+}
+export -f tracyLoop
