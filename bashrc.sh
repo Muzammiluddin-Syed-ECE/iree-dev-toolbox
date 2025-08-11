@@ -175,6 +175,7 @@ export -f setLocal
 refreshBrc() {
     source $HOME/.bashrc
     source $LOCAL/.venv/bin/activate
+    setLocal $PRJ
 }
 
 
@@ -182,6 +183,7 @@ installIREE() {
     CMAKE_INSTALL_METHOD=ABS_SYMLINK python -m pip install -e $1/compiler
     CMAKE_INSTALL_METHOD=ABS_SYMLINK python -m pip install -e $1/runtime
 }
+export -f installIREE
 
 rebuildLLVM() {
     pushd $IREE_HOME/third_party/llvm-project/build
@@ -628,13 +630,13 @@ export -f compileDirPattern
 
 # pip install -r pytorch-rocm-requirements.txt
 # pip install -r requirements.txt -e sharktank/ -e shortfin/
-# bash sharktank/sharktank/pipelines/flux/export_from_hf.sh /home/muzasyed/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44 flux_dev
+# bash sharktank/sharktank/pipelines/flux/export_from_hf.sh ~/.cache/huggingface/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44 flux_dev
 # cd ~/shark-ai/shortfin && python -m shortfin_apps.flux.server --model_config=./python/shortfin_apps/flux/examples/flux_dev_config.json --device=hip --fibers_per_device=1 --workers_per_device=1 --isolation="per_fiber" --build_preference=compile --port=8081
 
 # cd ~/shark-ai/ && pip install -e shortfin/
 
-# iree-compile /home/muzasyed/projects/project11/samples/mlir/flux_77.mlir -o $OUTPUT/flux_77_main.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-hal-dump-executable-sources-to=$OUTPUT/executables/sources
-# iree-run-module --device=hip --input=@/home/muzasyed/projects/project11/data/generate/1_77_rand.npy --module=$OUTPUT/flux_77_main.vmfb --parameters=model=/home/muzasyed/.cache/shark/genfiles/flux/flux_clip_bf16.irpa &> $OUTPUT/results_main.txt
+# iree-compile ~/projects/project11/samples/mlir/flux_77.mlir -o $OUTPUT/flux_77_main.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx942 --iree-hal-dump-executable-sources-to=$OUTPUT/executables/sources
+# iree-run-module --device=hip --input=@~/projects/project11/data/generate/1_77_rand.npy --module=$OUTPUT/flux_77_main.vmfb --parameters=model=~/.cache/shark/genfiles/flux/flux_clip_bf16.irpa &> $OUTPUT/results_main.txt
 
 
 # $IREE_BUILD/tracy/iree-tracy-capture -o capture.tracy
@@ -652,3 +654,24 @@ tracyLoop() {
     $IREE_BUILD/tracy/iree-tracy-capture -o capture.tracy
 }
 export -f tracyLoop
+
+# git diff-tree --no-commit-id --name-only -r <commit-hash>
+
+compilep() {
+    echo "$PROJECTS/$1/iree-build/tools/iree-compile $PROJECTS/$1/samples/mlir/$2.mlir -o $PROJECTS/$1/samples/vmfb/$2.vmfb --mlir-print-ir-after-all --iree-hal-target-device=hip --iree-hip-target=gfx942 &> $PROJECTS/$1/output/$2.mlir"
+    $PROJECTS/$1/iree-build/tools/iree-compile $PROJECTS/$1/samples/mlir/$2.mlir -o $PROJECTS/$1/samples/vmfb/$2.vmfb --mlir-disable-threading --mlir-print-ir-after-all --iree-hal-target-device=hip --iree-hip-target=gfx942 &> $PROJECTS/$1/output/$2.mlir
+}
+export -f compilep
+
+compilethis() {
+    args=("$@")
+    args=("${args[@]:1}")
+    echo $args
+    echo "$LOCAL/iree-build/tools/iree-compile $LOCAL/samples/mlir/$1.mlir -o $LOCAL/samples/vmfb/$1.vmfb --mlir-print-ir-after-all --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $LOCAL/output/$1.mlir"
+    $LOCAL/iree-build/tools/iree-compile $LOCAL/samples/mlir/$1.mlir -o $LOCAL/samples/vmfb/$1.vmfb --mlir-disable-threading --mlir-print-ir-after-all --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $LOCAL/output/$1.mlir
+}
+export -f compilethis
+
+# compilethis PR "--compile-to=executable-configurations --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true --mlir-disable-threading"
+# cat $IN_VMFB/PR.vmfb &> $IN_MLIR/PR_int.mlir
+# compilethis PR_int "--compile-from=executable-configurations --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true --mlir-disable-threading"
