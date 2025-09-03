@@ -20,7 +20,7 @@ else
 fi
 
 # rebuildc
-setLocal $1
+# setLocal $1
 
 for filepath in $pattern; do
   if [ -f "$filepath" ]; then
@@ -58,10 +58,10 @@ for filepath in $pattern; do
     thirdDim=("${args[1]}")
     echo "[COMPILE]"
     echo "iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir"
-    iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir
+    $PROJECTS/project0/iree-build/tools/iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir
     echo "[EXECUTE]"
     echo "iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result"
-    iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result
+    $PROJECTS/project0/iree-build/tools/iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result
     echo "$SRC_DIR/$file.${ITER}.result"
   fi
 done
@@ -82,10 +82,10 @@ for filepath in $pattern; do
     thirdDim=("${args[1]}")
     echo "[COMPILE]"
     echo "iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir"
-    iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir
+    $PROJECTS/project2/iree-build/tools/iree-compile $filepath -o $SRC_DIR/$file.${ITER}.vmfb --iree-hal-target-device=hip --iree-hip-target=$DEVICE --mlir-print-ir-after-all --debug-only=iree-llvmgpu-kernel-config &> $SRC_DIR/$file.${ITER}.mlir
     echo "[EXECUTE]"
     echo "iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result"
-    iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result
+    $PROJECTS/project2/iree-build/tools/iree-run-module --device=hip --module=$SRC_DIR/$file.${ITER}.vmfb --input=@$GENERATE/tensor_${firstDim}_${thirdDim}.npy --input=@$GENERATE/mask_${secondDim}_${thirdDim}.npy --output=@$SRC_DIR/output_${firstDim}_${secondDim}.${ITER}.npy &> $SRC_DIR/$file.${ITER}.result
     echo "$SRC_DIR/$file.${ITER}.result"
   fi
 done

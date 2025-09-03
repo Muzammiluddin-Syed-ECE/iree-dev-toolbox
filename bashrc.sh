@@ -694,6 +694,15 @@ tracyLoop() {
 export -f tracyLoop
 
 # git diff-tree --no-commit-id --name-only -r <commit-hash>
+csvExport() {
+    # Build using CMake:
+    cd third_party/tracy
+    cmake -B csvexport/build -S csvexport -DCMAKE_BUILD_TYPE=Release
+    cmake --build csvexport/build --parallel --config Release
+
+    # Run the csvexport tool:
+    ./csvexport/build/tracy-csvexport --help
+}
 
 compilep() {
     echo "$PROJECTS/$1/iree-build/tools/iree-compile $PROJECTS/$1/samples/mlir/$2.mlir -o $PROJECTS/$1/samples/vmfb/$2.vmfb --mlir-print-ir-after-all --iree-hal-target-device=hip --iree-hip-target=gfx942 &> $PROJECTS/$1/output/$2.mlir"
