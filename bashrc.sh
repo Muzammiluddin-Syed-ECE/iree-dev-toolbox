@@ -241,6 +241,44 @@ rebuildc() {
 } 
 export -f rebuildc
 
+rebuildTest() {
+    pushd $IREE_HOME
+    cmake -G Ninja -B $IREE_BUILD -S . \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DIREE_ENABLE_ASSERTIONS=ON \
+        -DIREE_ENABLE_SPLIT_DWARF=ON \
+        -DIREE_ENABLE_THIN_ARCHIVES=ON \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DIREE_ENABLE_LLD=ON \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+        -DIREE_BUILD_PYTHON_BINDINGS=ON  \
+        -DPython3_EXECUTABLE="$(which python3)" \
+        -DIREE_HAL_DRIVER_HIP=ON \
+        -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
+        -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
+        -DIREE_HAL_DRIVER_VULKAN=ON \
+        -DIREE_HAL_DRIVER_CUDA=ON \
+        -DIREE_TARGET_BACKEND_CUDA=ON \
+        -DIREE_TARGET_BACKEND_VMVX=ON \
+        -DIREE_TARGET_BACKEND_LLVM_CPU=ON \
+        -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
+        -DIREE_TARGET_BACKEND_ROCM=ON \
+        -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
+        -DIREE_ENABLE_RUNTIME_TRACING=ON \
+        -DIREE_BUILD_TRACY=ON \
+        -DIREE_TRACING_MODE=1 \
+        -DIREE_HIP_TEST_TARGET_CHIP=gfx942
+    cmake --build $IREE_BUILD -j 64
+    installIREE $IREE_BUILD
+    cd $IREE_BUILD
+    ninja all
+    ninja iree-test-deps
+    popd
+} 
+export -f rebuildTest
+
 rebuild() {
     pushd $IREE_HOME
     cmake -G Ninja -B $IREE_BUILD -S . \
