@@ -719,6 +719,30 @@ compilethis() {
 }
 export -f compilethis
 
+e2ethis() {
+    args=("$@")
+    args=("${args[@]:1}")
+    echo $args
+    echo "$LOCAL/iree-build/tools/iree-compile $IN_MLIR/$1.mlir -o $IN_VMFB/$1.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $OUTPUT/$1.mlir"
+    $LOCAL/iree-build/tools/iree-compile $IN_MLIR/$1.mlir -o $IN_VMFB/$1.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $OUTPUT/$1.mlir
+    echo "$LOCAL/iree-build/tools/iree-run-module --module=$IN_VMFB/$1.vmfb --device=hip --output=@$OUTPUT/$1.npy $args"
+    $LOCAL/iree-build/tools/iree-run-module --module=$IN_VMFB/$1.vmfb --device=hip --output=@$OUTPUT/$1.npy $args
+    printNpy $OUTPUT/$1.npy
+}
+export -f e2ethis
+
+benchmarkthis() {
+    args=("$@")
+    args=("${args[@]:1}")
+    echo $args
+    echo "$LOCAL/iree-build/tools/iree-compile $IN_MLIR/$1.mlir -o $IN_VMFB/$1.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $OUTPUT/$1.mlir"
+    $LOCAL/iree-build/tools/iree-compile $IN_MLIR/$1.mlir -o $IN_VMFB/$1.vmfb --iree-hal-target-device=hip --iree-hip-target=gfx950 $args &> $OUTPUT/$1.mlir
+    echo "$LOCAL/iree-build/tools/iree-benchmark-module --module=$IN_VMFB/$1.vmfb --device=hip --output=@$OUTPUT/$1.npy $args"
+    $LOCAL/iree-build/tools/iree-benchmark-module --module=$IN_VMFB/$1.vmfb --device=hip --output=@$OUTPUT/$1.npy --benchmark_repetitions=3 $args
+    printNpy $OUTPUT/$1.npy
+}
+
 # compilethis PR "--compile-to=executable-configurations --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true --mlir-disable-threading"
 # cat $IN_VMFB/PR.vmfb &> $IN_MLIR/PR_int.mlir
 # compilethis PR_int "--compile-from=executable-configurations --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true --mlir-disable-threading"
+# rocprofv3 -i att.json -d traces -- /home/muzasyed/projects/project17/iree-build/tools/iree-run-module --module=/home/muzasyed/projects/project17/samples/vmfb/scaled_matmul_1_1.vmfb --device=hip --output=@/home/muzasyed/projects/project17/output/scaled_matmul_1_1.npy
