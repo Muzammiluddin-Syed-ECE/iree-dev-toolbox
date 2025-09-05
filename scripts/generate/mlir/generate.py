@@ -1,69 +1,79 @@
 import numpy as numpy
 import sys
 import re
+import scripts.generate.npy.generateNpy as gen
 
-src_file_path = sys.argv[1]
-bounds = sys.argv[2:]
+# How to use:
+# Add dims as $d0$ in your mlir file and this will use those to do a find and replace.
+# python generate.py <template file> <destination dir> <dim0> <dim1> ...
+class FileName:
+    def __init__(self, dir, filename):
+        self.dir = dir
+        pattern = r'.[0-9a-z]*'
+        tensor_list = re.split('\.', filename)
+        fname = ""
+        for a in tensor_list[:-1]:
+            fname += a
+        self.filename = fname
+        self.suffix = tensor_list[-1]
+        
+    def __str__(self):
+        return f"{self.dir}/{self.filename}.{self.suffix}"
 
-num_args = int(len(bounds)/3)
-lower_bounds = bounds[:num_args]
-upper_bounds = bounds[num_args:num_args*2]
-steps = bounds[num_args*2:]
-print(lower_bounds)
-print(upper_bounds)
-print(steps)
+    def withType(self, type):
+        return f"{self.dir}/{self.filename}.{type}"
 
-path = src_file_path.split("/")
-filename = path[-1]
-path = path[:-1]
-path_str = ""
-for dir in path:
-    if (len(dir) > 0):
-        path_str += "/" + dir
+def createMLIR(src_file_path, dst_dir_path, replacements):
+    path = src_file_path.split("/")
+    filename = path[-1]
+    path = path[:-1]
+    path_str = ""
+    for dir in path:
+        if (len(dir) > 0):
+            path_str += "/" + dir
 
 
-f = open(src_file_path, "r")
+    f = open(src_file_path, "r")
+    content = f.read()
+    pattern = r'\$[`0-9a-zA-Z\^!@#%\&\*\(\)]*\$'
+    args = re.findall(pattern, content)
 
-content = f.read()
+    # filter list of all duplicates, keeping only the first instance in order.
+    substitutions = {}
+    i = 0
+    for dim in args:
+        if dim not in substitutions and i < len(replacements):
+            substitutions[dim] = str(replacements[i])
+            i = i + 1
 
-
-print(content)
-pattern = r'\$([`0-9a-zA-Z\^!@#\$%\&\*\(\)]*)\$'
-args = re.findall(pattern, content)
-
-assert(len(args) == num_args)
-
-def myround(x, base=64):
-    return base * round(max(x/base, 1))
-
-def generateSubstitutions(args, res, lower_bounds, upper_bounds, steps):
-    new_res = []
-    if args is None or len(args) == 0:
-        return res
-    step_size = int((int(upper_bounds[0]) - int(lower_bounds[0])) / int(steps[0]))
-    for i in range(len(res)):
-        iter = int(lower_bounds[0])
-        for j in range(int(steps[0])+1):
-            # temp = res[i] + [myround(iter)]
-            temp = res[i] + [iter]
-            print(temp)
-            new_res.append(temp)
-            iter = iter + step_size
-    return generateSubstitutions(args[1:], new_res, lower_bounds[1:], upper_bounds[1:], steps[1:])
-
-substitutions = generateSubstitutions(args, [[]], lower_bounds, upper_bounds, steps)
-
-for substitution in substitutions:
     substition_str = ""
-    for num in substitution:
+    for num in replacements:
         substition_str += str(num) + "_"
     sub_filename = substition_str + filename
-    sub_fullpath = path_str + "/generated/" + sub_filename
+    sub_fullpath = FileName(dst_dir_path, sub_filename)
+
     sub_content = content
-    for i in range(num_args):
-        print(args[i])
-        print(str(substitution[i]))
-        sub_content = re.sub(args[i], str(substitution[i]), sub_content)
-    f = open(sub_fullpath, "w+")
+    for key in substitutions:
+        escaped_key = re.sub("\$", r"\$", key)
+        sub_content = re.sub(escaped_key, substitutions[key], sub_content)
+
+    f = open(str(sub_fullpath), "w+")
     f.write(sub_content)
     f.close()
+    return sub_fullpath
+
+def generateLoop(src_file_path, dst_dir_path, replacements):
+    cmds = []
+    f = createMLIR(src_file_path, dst_dir_path, replacements)
+    vmfb = f.withType("vmfb")
+    cmds.append(f"{str(f)} -o {vmfb} --iree-hal-target-device=hip --iree-hip-target=gfx950")
+    cmd = gen.createTensors(str(f), dst_dir_path)
+    cmds.append(f"--module={vmfb} --device=hip --output=@{dst_dir_path}/{f.filename}.npy {cmd}")
+    return cmds
+
+if __name__ == "__main__":
+    src_file_path = sys.argv[1]
+    dst_dir_path = sys.argv[2]
+    replacements = sys.argv[3:]
+    cmds = generateLoop(src_file_path, dst_dir_path, replacements)
+    print(cmds)
