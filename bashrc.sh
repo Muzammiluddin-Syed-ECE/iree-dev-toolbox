@@ -129,10 +129,10 @@ prepare_env() {
 }
 export PROJECTS=$HOME/projects
 export IREE_HOME=$HOME/iree
-export IREE_BUILD_DIR=project14/iree-build
+export IREE_BUILD_DIR=project0/iree-build
 export IREE_BUILD=$PROJECTS/$IREE_BUILD_DIR
 export IREE_DEV_TOOLBOX=$HOME/iree-dev-toolbox
-export PRJ=project14
+export PRJ=project0
 export LOCAL=$PROJECTS/$PRJ
 export OUTPUT=$LOCAL/output
 export IN_MLIR=$LOCAL/samples/mlir
@@ -146,8 +146,9 @@ export PATH=$PATH:$IREE_HOME/third_party/torch-mlir/tools
 export PATH=$PATH:$IREE_BUILD/llvm-project/bin
 export PATH=$PATH:$HOME/torch-mlir/build/bin
 export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/bin
+export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/tools
 export PATH="/usr/lib/ccache:$PATH"
-export PYTHONPATH=$IREE_BUILD/compiler/bindings/python:$IREE_BUILD/runtime/bindings/python
+export PYTHONPATH=/home/muzasyed/fp4-benchmark:$IREE_BUILD/compiler/bindings/python:$IREE_BUILD/runtime/bindings/python:$IREE_DEV_TOOLBOX
 export THIRDPARTY=$IREE_HOME/third_party
 export DEVICE=$(rocminfo | grep -o "gfx[0-9]*" | head -n 1)
 echo "DEVICE IS $DEVICE"
@@ -233,7 +234,7 @@ rebuildc() {
         -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
         -DIREE_ENABLE_RUNTIME_TRACING=ON \
         -DIREE_BUILD_TRACY=ON \
-        -DIREE_TRACING_MODE=1 \
+        -DIREE_TRACING_MODE=3 \
         -DIREE_HIP_TEST_TARGET_CHIP=gfx942
     cmake --build $IREE_BUILD -j 64
     installIREE $IREE_BUILD
@@ -746,3 +747,42 @@ benchmarkthis() {
 # cat $IN_VMFB/PR.vmfb &> $IN_MLIR/PR_int.mlir
 # compilethis PR_int "--compile-from=executable-configurations --iree-codegen-llvmgpu-early-tile-and-fuse-matmul=true --mlir-disable-threading"
 # rocprofv3 -i att.json -d traces -- /home/muzasyed/projects/project17/iree-build/tools/iree-run-module --module=/home/muzasyed/projects/project17/samples/vmfb/scaled_matmul_1_1.vmfb --device=hip --output=@/home/muzasyed/projects/project17/output/scaled_matmul_1_1.npy
+
+# git branch -m upstream/muzasyed/default upstream/users/muzasyed/default
+# git push upstream -u users/muzasyed/default
+# git push upstream --delete muzasyed/default
+
+# git branch -m upstream/muzasyed/promoteToLDS upstream/users/muzasyed/promoteToLDS
+# git push origin -u upstream/users/muzasyed/promoteToLDS
+# git push origin --delete upstream/muzasyed/promoteToLDS
+
+# git branch -m upstream/muzasyed/fp4tile upstream/users/muzasyed/fp4tile
+# git push origin -u upstream/users/muzasyed/fp4tile
+# git push origin --delete upstream/muzasyed/fp4tile
+
+# ./matrix_calculator.py --architecture cdna3 --list-instructions
+# ./matrix_calculator.py --architecture cdna3 --instruction v_mfma_f32_16x16x16_f16 --detail-instruction
+# ./matrix_calculator.py --architecture rdna4 --instruction v_wmma_f32_16x16x16_f16 --detail-instruction
+# ./matrix_calculator.py --architecture cdna3 --instruction v_mfma_f32_16x16x16_f16 --register-layout --D-matrix
+
+fp4compile() {
+    args=("$@")
+    args=("${args[@]:1}")
+    iree-compile $IN_MLIR/$1.mlir \
+    -o=$IN_MLIR/$1.vmfb \
+    --iree-hip-target=gfx950 \
+    --iree-hal-target-device=hip \
+    --iree-opt-level=O3     --iree-dispatch-creation-propagate-collapse-across-expands=true \
+    --iree-codegen-enable-default-tuning-specs=true     --iree-hip-enable-ukernels \
+    --iree-hal-indirect-command-buffers=true     --iree-stream-resource-memory-model=discrete \
+    --iree-hip-specialize-dispatches     --iree-hal-memoization=true \
+    --iree-stream-affinity-solver-max-iterations=1024 \
+    $args
+}
+
+# gitswitch() {
+
+# }
+
+# unzip .vmfb
+# llvm-objdump #####
