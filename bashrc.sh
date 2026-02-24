@@ -116,6 +116,7 @@ if ! shopt -oq posix; then
   fi
 fi
 
+
 prepare_env() {
     # Install package
     sudo apt install cmake ninja-build clang lld python3.10-venv python3-dev
@@ -147,6 +148,7 @@ export PATH=$PATH:$IREE_BUILD/llvm-project/bin
 export PATH=$PATH:$HOME/torch-mlir/build/bin
 export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/bin
 export PATH=$PATH:$IREE_HOME/third_party/llvm-project/build/tools
+export PATH=$PATH:$IREE_HOME/third_party/tracy/csvexport/build
 export PATH="/usr/lib/ccache:$PATH"
 export PYTHONPATH=/home/muzasyed/fp4-benchmark:$IREE_BUILD/compiler/bindings/python:$IREE_BUILD/runtime/bindings/python:$IREE_DEV_TOOLBOX
 export THIRDPARTY=$IREE_HOME/third_party
@@ -207,9 +209,14 @@ rebuildLLVM() {
     popd
 }
 
+
 rebuildc() {
+    BUILD_DIR=$IREE_BUILD
+    if [ ! -z "$1" ] ; then
+        BUILD_DIR=$PROJECTS/$1/iree-build
+    fi
     pushd $IREE_HOME
-    cmake -G Ninja -B $IREE_BUILD -S . \
+    cmake -G Ninja -B $BUILD_DIR -S . \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DIREE_ENABLE_ASSERTIONS=ON \
         -DIREE_ENABLE_SPLIT_DWARF=ON \
@@ -220,7 +227,8 @@ rebuildc() {
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DIREE_BUILD_PYTHON_BINDINGS=ON  \
-        -DPython3_EXECUTABLE="$(which python3)" \
+        -DIREE_BUILD_RUNTIME=ON \
+        -DPython3_EXECUTABLE="$(which python3.11)" \
         -DIREE_HAL_DRIVER_HIP=ON \
         -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
         -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
@@ -235,12 +243,50 @@ rebuildc() {
         -DIREE_ENABLE_RUNTIME_TRACING=ON \
         -DIREE_BUILD_TRACY=ON \
         -DIREE_TRACING_MODE=3 \
-        -DIREE_HIP_TEST_TARGET_CHIP=gfx942
-    cmake --build $IREE_BUILD -j 64
-    installIREE $IREE_BUILD
+        -DIREE_HIP_TEST_TARGET_CHIP=$DEVICE
+    cmake --build $BUILD_DIR -j 64
+    installIREE $BUILD_DIR
     popd
 } 
 export -f rebuildc
+
+rebuildWorktree() {
+    worktreePath=$1
+    BUILD_DIR=$worktreePath/iree-build
+    mkdir -p $BUILD_DIR
+    pushd $worktreePath
+    cmake -G Ninja -B $BUILD_DIR -S . \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DIREE_ENABLE_ASSERTIONS=ON \
+        -DIREE_ENABLE_SPLIT_DWARF=ON \
+        -DIREE_ENABLE_THIN_ARCHIVES=ON \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DIREE_ENABLE_LLD=ON \
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+        -DIREE_BUILD_PYTHON_BINDINGS=ON  \
+        -DIREE_BUILD_RUNTIME=ON \
+        -DPython3_EXECUTABLE="$(which python3.11)" \
+        -DIREE_HAL_DRIVER_HIP=ON \
+        -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
+        -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
+        -DIREE_HAL_DRIVER_VULKAN=ON \
+        -DIREE_HAL_DRIVER_CUDA=ON \
+        -DIREE_TARGET_BACKEND_CUDA=ON \
+        -DIREE_TARGET_BACKEND_VMVX=ON \
+        -DIREE_TARGET_BACKEND_LLVM_CPU=ON \
+        -DIREE_TARGET_BACKEND_VULKAN_SPIRV=ON \
+        -DIREE_TARGET_BACKEND_ROCM=ON \
+        -DIREE_BUILD_ALL_CHECK_TEST_MODULES=ON \
+        -DIREE_ENABLE_RUNTIME_TRACING=ON \
+        -DIREE_BUILD_TRACY=ON \
+        -DIREE_TRACING_MODE=3 \
+        -DIREE_HIP_TEST_TARGET_CHIP=$DEVICE
+    cmake --build $BUILD_DIR -j 64
+    popd
+} 
+export -f rebuildWorktree
 
 rebuildTest() {
     pushd $IREE_HOME
@@ -255,7 +301,7 @@ rebuildTest() {
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DIREE_BUILD_PYTHON_BINDINGS=ON  \
-        -DPython3_EXECUTABLE="$(which python3)" \
+        -DPython3_EXECUTABLE="$(which python3.11)" \
         -DIREE_HAL_DRIVER_HIP=ON \
         -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
         -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
@@ -270,7 +316,7 @@ rebuildTest() {
         -DIREE_ENABLE_RUNTIME_TRACING=ON \
         -DIREE_BUILD_TRACY=ON \
         -DIREE_TRACING_MODE=1 \
-        -DIREE_HIP_TEST_TARGET_CHIP=gfx942
+        -DIREE_HIP_TEST_TARGET_CHIP=$DEVICE
     cmake --build $IREE_BUILD -j 64
     installIREE $IREE_BUILD
     cd $IREE_BUILD
@@ -294,7 +340,7 @@ rebuild() {
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DIREE_BUILD_PYTHON_BINDINGS=ON  \
-        -DPython3_EXECUTABLE="$(which python3)" \
+        -DPython3_EXECUTABLE="$(which python3.11)" \
         -DIREE_HAL_DRIVER_HIP=ON \
         -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
         -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
@@ -325,7 +371,7 @@ rebuildRelease() {
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DIREE_BUILD_PYTHON_BINDINGS=ON  \
-        -DPython3_EXECUTABLE="$(which python3)" \
+        -DPython3_EXECUTABLE="$(which python3.11)" \
         -DIREE_HAL_DRIVER_HIP=ON \
         -DIREE_HAL_DRIVER_LOCAL_SYNC=ON \
         -DIREE_HAL_DRIVER_LOCAL_TASK=ON \
@@ -358,7 +404,7 @@ rebuildDebug() {
     -DIREE_ENABLE_LLD=ON \
     -DIREE_BUILD_PYTHON_BINDINGS=ON  \
     -DPython_EXECUTABLE="$(which python)" \
-    -DPython3_EXECUTABLE="$(which python3)" \
+    -DPython3_EXECUTABLE="$(which python3.11)" \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DLLVM_ENABLE_ASSERTIONS=ON
@@ -780,6 +826,24 @@ fp4compile() {
     $args
 }
 
+disassemble() {
+    python ~/fp4-benchmark/scripts/disassemble_vmfb.py $1 --verbose --extract-binaries
+}
+export -f disassemble
+
+benchmark() {
+    args=("$@")
+    python ~/fp4-benchmark/benchmark.py ${args[@]}
+}
+export -f benchmark
+
+compare() {
+    args=("$@")
+    python ~/fp4-benchmark/scripts/compare_results.py ${args[@]}
+}
+export -f compare
+
+export cursor_agent_context="~/.cursor/rules/agent-context.mdc"
 # gitswitch() {
 
 # }
