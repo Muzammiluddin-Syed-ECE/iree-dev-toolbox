@@ -154,6 +154,7 @@ export PYTHONPATH=/home/muzasyed/fp4-benchmark:$IREE_BUILD/compiler/bindings/pyt
 export THIRDPARTY=$IREE_HOME/third_party
 export DEVICE=$(rocminfo | grep -o "gfx[0-9]*" | head -n 1)
 echo "DEVICE IS $DEVICE"
+# export LD_PRELOAD=$IREE_BUILD/compiler/bindings/python/iree/compiler/_mlir_libs/libIREECompiler.so
 
 setLocal() {
     old="export PRJ=$PRJ"
@@ -209,7 +210,6 @@ rebuildLLVM() {
     popd
 }
 
-
 rebuildc() {
     BUILD_DIR=$IREE_BUILD
     if [ ! -z "$1" ] ; then
@@ -249,6 +249,18 @@ rebuildc() {
     popd
 } 
 export -f rebuildc
+
+rebuildTools() {
+    BUILD_DIR=$IREE_BUILD
+    if [ ! -z "$1" ] ; then
+        BUILD_DIR=$1/iree-build
+    fi
+    pushd $BUILD_DIR
+    ninja iree-compile
+    ninja iree-opt
+    popd
+}
+export -f rebuildTools
 
 rebuildWorktree() {
     worktreePath=$1
